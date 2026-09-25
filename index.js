@@ -25,16 +25,17 @@ db.connect(err => {
 
 // --- INTERFAZ WEB PRINCIPAL (HTML) ---
 app.get('/', (req, res) => {
-    db.query('SELECT * FROM paises', (err, results) => {
+    db.query('SELECT * FROM paises ORDER BY pais_id ASC', (err, results) => {
         if (err) return res.status(500).send('Error al cargar países');
 
-        // Generar la tabla HTML dinámicamente con los países de MySQL
+        // Generar las filas de la tabla con botones de Editar y Borrar
         let filasTabla = results.map(p => `
             <tr>
                 <td>${p.pais_id}</td>
                 <td>${p.pais_descripcion}</td>
                 <td>
-                    <button onclick="eliminarPais(${p.pais_id})" style="background-color: red; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">Borrar</button>
+                    <button onclick="modificarPais(${p.pais_id}, '${p.pais_descripcion}')" style="background-color: #f0ad4e; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; margin-right: 5px;">Editar</button>
+                    <button onclick="eliminarPais(${p.pais_id})" style="background-color: #d9534f; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">Borrar</button>
                 </td>
             </tr>
         `).join('');
@@ -47,12 +48,12 @@ app.get('/', (req, res) => {
                 <title>CRUD de Países</title>
                 <style>
                     body { font-family: Arial, sans-serif; margin: 30px; }
-                    table { border-collapse: collapse; width: 50%; margin-top: 20px; }
-                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                    table { border-collapse: collapse; width: 60%; margin-top: 20px; }
+                    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
                     th { background-color: #f2f2f2; }
                     form { margin-bottom: 20px; }
-                    input[type="text"] { padding: 6px; width: 250px; }
-                    button[type="submit"] { padding: 6px 12px; background-color: green; color: white; border: none; cursor: pointer; }
+                    input[type="text"] { padding: 8px; width: 250px; }
+                    button[type="submit"] { padding: 8px 15px; background-color: #5cb85c; color: white; border: none; cursor: pointer; border-radius: 3px; }
                 </style>
             </head>
             <body>
@@ -70,7 +71,7 @@ app.get('/', (req, res) => {
                         <tr>
                             <th>ID</th>
                             <th>País</th>
-                            <th>Acción</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -79,7 +80,7 @@ app.get('/', (req, res) => {
                 </table>
 
                 <script>
-                    // Función para AGREGAR un país
+                    // 1. AGREGAR PAÍS
                     document.getElementById('formAgregar').addEventListener('submit', async (e) => {
                         e.preventDefault();
                         const pais_descripcion = document.getElementById('nombrePais').value;
@@ -91,13 +92,32 @@ app.get('/', (req, res) => {
                         });
 
                         if (respuesta.ok) {
-                            location.reload(); // Recargar la página para ver el cambio
+                            location.reload();
                         } else {
                             alert('Error al agregar el país');
                         }
                     });
 
-                    // Función para BORRAR un país
+                    // 2. MODIFICAR PAÍS
+                    async function modificarPais(id, nombreActual) {
+                        const nuevoNombre = prompt('Ingrese el nuevo nombre para el país:', nombreActual);
+                        
+                        if (nuevoNombre && nuevoNombre.trim() !== '' && nuevoNombre !== nombreActual) {
+                            const respuesta = await fetch('/paises/' + id, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ pais_descripcion: nuevoNombre.trim() })
+                            });
+
+                            if (respuesta.ok) {
+                                location.reload();
+                            } else {
+                                alert('Error al modificar el país');
+                            }
+                        }
+                    }
+
+                    // 3. ELIMINAR PAÍS
                     async function eliminarPais(id) {
                         if (confirm('¿Seguro que querés borrar este país?')) {
                             const respuesta = await fetch('/paises/' + id, {
@@ -105,7 +125,7 @@ app.get('/', (req, res) => {
                             });
 
                             if (respuesta.ok) {
-                                location.reload(); // Recargar la página para ver el cambio
+                                location.reload();
                             } else {
                                 alert('Error al borrar el país');
                             }
@@ -119,11 +139,11 @@ app.get('/', (req, res) => {
     });
 });
 
-// --- RUTAS DE LA API (CRUD) ---
+// --- RUTAS DE LA API (CRUD COMPLETO) ---
 
-// READ: Obtener todos los países en formato JSON
+// READ: Obtener todos los países
 app.get('/paises', (req, res) => {
-    db.query('SELECT * FROM paises', (err, results) => {
+    db.query('SELECT * FROM paises ORDER BY pais_id ASC', (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
     });
@@ -141,10 +161,13 @@ app.post('/paises', (req, res) => {
     });
 });
 
-// UPDATE: Actualizar un país por ID
+// UPDATE: Modificar un país por ID
 app.put('/paises/:id', (req, res) => {
     const { id } = req.params;
     const { pais_descripcion } = req.body;
+    if (!pais_descripcion) {
+        return res.status(400).json({ error: 'El nuevo nombre es obligatorio' });
+    }
     db.query('UPDATE paises SET pais_descripcion = ? WHERE pais_id = ?', [pais_descripcion, id], (err) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ mensaje: 'País actualizado correctamente' });
